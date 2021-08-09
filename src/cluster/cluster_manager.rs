@@ -25,8 +25,7 @@ use slog::{debug, o, warn, Logger};
 use prometheus::{Registry, Result as MetricsResult};
 use tokio::sync::{mpsc, watch};
 
-use crate::cluster::Endpoint;
-use crate::config::{Endpoints, UpstreamEndpoints};
+use crate::endpoint::{Endpoint, Endpoints, UpstreamEndpoints};
 use crate::xds::ads_client::ClusterUpdate;
 
 use super::metrics::Metrics;
@@ -129,7 +128,7 @@ impl ClusterManager {
                         endpoints
                             .endpoints
                             .iter()
-                            .map(|ep| Endpoint::from_address(ep.address))
+                            .map(|ep| Endpoint::new(ep.address))
                     })
                     .flatten();
                 endpoints.extend(cluster_endpoints);
@@ -137,10 +136,7 @@ impl ClusterManager {
                 endpoints
             });
 
-        match Endpoints::new(endpoints) {
-            Ok(endpoints) => Some(endpoints),
-            Err(_empty_list_error) => None,
-        }
+        Endpoints::new(endpoints)
     }
 
     /// Spawns a task to run a loop that receives cluster updates
@@ -181,20 +177,24 @@ impl ClusterManager {
 
 #[cfg(test)]
 mod tests {
-    use super::ClusterManager;
-    use crate::cluster::{Cluster, Endpoint, LocalityEndpoints};
-    use crate::config::Endpoints;
-    use crate::test_utils::logger;
     use prometheus::Registry;
     use tokio::sync::{mpsc, watch};
+
+    use crate::{
+        cluster::{Cluster, LocalityEndpoints},
+        endpoint::{Endpoint, Endpoints},
+        test_utils::logger,
+    };
+
+    use super::ClusterManager;
 
     #[test]
     fn static_cluster_manager_metrics() {
         let cm = ClusterManager::fixed(
             &Registry::default(),
             Endpoints::new(vec![
-                Endpoint::from_address("127.0.0.1:80".parse().unwrap()),
-                Endpoint::from_address("127.0.0.1:81".parse().unwrap()),
+                Endpoint::new("127.0.0.1:80".parse().unwrap()),
+                Endpoint::new("127.0.0.1:81".parse().unwrap()),
             ])
             .unwrap(),
         )
@@ -225,9 +225,7 @@ mod tests {
                     localities: vec![(
                         None,
                         LocalityEndpoints {
-                            endpoints: vec![Endpoint::from_address(
-                                "127.0.0.1:80".parse().unwrap(),
-                            )],
+                            endpoints: vec![Endpoint::new("127.0.0.1:80".parse().unwrap())],
                         },
                     )]
                     .into_iter()
@@ -241,8 +239,8 @@ mod tests {
                         None,
                         LocalityEndpoints {
                             endpoints: vec![
-                                Endpoint::from_address("127.0.0.1:82".parse().unwrap()),
-                                Endpoint::from_address("127.0.0.1:83".parse().unwrap()),
+                                Endpoint::new("127.0.0.1:82".parse().unwrap()),
+                                Endpoint::new("127.0.0.1:83".parse().unwrap()),
                             ],
                         },
                     )]
