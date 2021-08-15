@@ -32,7 +32,9 @@ pub mod concatenate_bytes;
 pub mod debug;
 pub mod load_balancer;
 pub mod local_rate_limit;
+mod lua;
 pub mod metadata;
+pub mod rhai;
 pub mod token_router;
 
 /// Prelude containing all types and traits required to implement [`Filter`] and
