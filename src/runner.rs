@@ -61,11 +61,21 @@ pub async fn run_with_config(
         .validate()?
         .build();
 
+    let mut sig_term = signal::unix::signal(signal::unix::SignalKind::terminate())?;
+
     let (shutdown_tx, shutdown_rx) = watch::channel::<()>(());
+    let signal_log = log.clone();
     tokio::spawn(async move {
+        tokio::select! {
+            _ = signal::ctrl_c() => {
+                info!(signal_log, "Received SIGINT")
+            }
+            _ = sig_term.recv()=> {
+                info!(signal_log, "Received SIGTERM")
+            }
+        }
         // Don't unwrap in order to ensure that we execute
         // any subsequent shutdown tasks.
-        signal::ctrl_c().await.ok();
         shutdown_tx.send(()).ok();
     });
 
