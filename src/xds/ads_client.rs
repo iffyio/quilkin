@@ -133,6 +133,9 @@ impl AdsClient {
         mut shutdown_rx: watch::Receiver<()>,
     ) -> ExecutionResult {
         let mut backoff = ExponentialBackoff::<SystemClock>::default();
+        // If we hit connectivity issues, always backoff and retry.
+        backoff.max_elapsed_time = None;
+
         let log = self.log;
         let metrics = self.metrics;
 
@@ -205,7 +208,7 @@ impl AdsClient {
                         Err(RpcSessionError::Receive(handlers, bk_off, status)) => {
                             resource_handlers = handlers;
                             backoff = bk_off;
-                            error!(log, "Failed to receive from XDS server"; "address" => server_addr, "status" => #?status);
+                            error!(log, "Failed to receive response from XDS server"; "address" => server_addr, "status" => #?status);
                             Self::backoff(
                                 &log,
                                 &mut backoff
@@ -450,9 +453,10 @@ impl AdsClient {
         log: &Logger,
         backoff: &mut ExponentialBackoff<C>,
     ) -> Result<(), ExecutionError> {
-        let delay = backoff
-            .next_backoff()
-            .ok_or(ExecutionError::BackoffLimitExceeded)?;
+        let delay = backoff.next_backoff().ok_or_else(|| {
+            warn!(log, "Backoff limit exceeded");
+            ExecutionError::BackoffLimitExceeded
+        })?;
         info!(log, "Retrying"; "delay" => #?delay);
         tokio::time::sleep(delay).await;
         Ok(())
